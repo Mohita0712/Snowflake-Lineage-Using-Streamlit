@@ -1,0 +1,10 @@
+name: app_environment
+channels:
+  - snowflake
+dependencies:
+  - networkx=3.5
+  - openpyxl=3.1.5
+  - python=3.11.*
+  - pyvis=0.3.2
+  - snowflake-snowpark-python=
+  - streamlit=
