@@ -317,127 +317,7 @@ def get_lineage_for_multiple_objects(session, object_names: list, max_distance: 
 # VISUALIZATION FUNCTIONS
 # =============================================================================
 
-def create_lineage_network_graph(upstream_df: pd.DataFrame, downstream_df: pd.DataFrame, central_object_name: str):
-    """Creates an interactive network graph using Pyvis"""
-    try:
-        # Create network
-        net = Network(height="600px", width="100%", bgcolor="#f8f9fa", font_color="#212529", 
-                     notebook=False, cdn_resources='remote')
-        
-        # Configure physics for better layout
-        net.set_options("""
-        var options = {
-          "physics": {
-            "enabled": true,
-            "stabilization": {"iterations": 100},
-            "barnesHut": {
-              "gravitationalConstant": -8000,
-              "centralGravity": 0.3,
-              "springLength": 150,
-              "springConstant": 0.04,
-              "damping": 0.09,
-              "avoidOverlap": 0.1
-            }
-          },
-          "nodes": {
-            "font": {
-              "size": 14,
-              "face": "Arial",
-              "color": "#212529"
-            },
-            "borderWidth": 2,
-            "shadow": {"enabled": true}
-          },
-          "edges": {
-            "color": {"inherit": false},
-            "width": 2,
-            "arrows": {"to": {"enabled": true, "scaleFactor": 1.2}},
-            "font": {"size": 10, "color": "#495057"},
-            "shadow": {"enabled": true}
-          }
-        }
-        """)
 
-        # Add central object node (orange)
-        net.add_node(central_object_name, 
-                    label=central_object_name, 
-                    color="#FF8C00", 
-                    size=30, 
-                    title=f"Central Object: {central_object_name}",
-                    borderWidth=3)
-
-        # Add upstream dependencies (blue nodes)
-        for _, row in upstream_df.iterrows():
-            source = row['SOURCE_OBJECT_NAME']
-            target = row['TARGET_OBJECT_NAME']
-            distance = row['DISTANCE']
-            
-            # Add source node if not exists
-            if source not in [node['id'] for node in net.nodes]:
-                net.add_node(source, 
-                           label=source, 
-                           color="#4A90E2", 
-                           size=20 + max(0, (3-distance)*3), 
-                           title=f"Upstream: {source}\nDistance: {distance}")
-            
-            # Add target node if not exists and not central
-            if target not in [node['id'] for node in net.nodes] and target != central_object_name:
-                net.add_node(target, 
-                           label=target, 
-                           color="#4A90E2", 
-                           size=20 + max(0, (3-distance)*3), 
-                           title=f"Upstream Target: {target}\nDistance: {distance}")
-
-            # Add edge
-            net.add_edge(source, target, 
-                        title=f"Distance: {distance}", 
-                        color="#87CEEB",
-                        width=max(1, 4-distance))
-
-        # Add downstream dependencies (green nodes)
-        for _, row in downstream_df.iterrows():
-            source = row['SOURCE_OBJECT_NAME']
-            target = row['TARGET_OBJECT_NAME']
-            distance = row['DISTANCE']
-            
-            # Add source node if not exists and not central
-            if source not in [node['id'] for node in net.nodes] and source != central_object_name:
-                net.add_node(source, 
-                           label=source, 
-                           color="#50C878", 
-                           size=20 + max(0, (3-distance)*3), 
-                           title=f"Downstream Source: {source}\nDistance: {distance}")
-            
-            # Add target node if not exists
-            if target not in [node['id'] for node in net.nodes]:
-                net.add_node(target, 
-                           label=target, 
-                           color="#50C878", 
-                           size=20 + max(0, (3-distance)*3), 
-                           title=f"Downstream: {target}\nDistance: {distance}")
-
-            # Add edge
-            net.add_edge(source, target, 
-                        title=f"Distance: {distance}", 
-                        color="#90EE90",
-                        width=max(1, 4-distance))
-
-        # Generate HTML
-        html_file = tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False)
-        net.save_graph(html_file.name)
-        
-        # Read and display
-        with open(html_file.name, 'r', encoding='utf-8') as f:
-            html_content = f.read()
-        
-        # Clean up temp file
-        os.unlink(html_file.name)
-        
-        return html_content
-        
-    except Exception as e:
-        st.error(f"Error creating network graph: {e}")
-        return None
 
 def display_lineage_summary(upstream_df: pd.DataFrame, downstream_df: pd.DataFrame):
     """Display summary statistics for lineage analysis"""
@@ -632,7 +512,7 @@ st.markdown("""
     /* Metrics styling */
     .stMetric {
         background: white !important;
-        padding: 1rem !important;
+        padding: 0.5rem !important;
         border-radius: 8px !important;
         border: 1px solid #dee2e6 !important;
         text-align: center !important;
@@ -817,54 +697,46 @@ with tab2:
         sample_data = {
             'DATABASE_NAME': [
                 'SNOWFLAKE_SAMPLE_DATA', 
-                'SNOWFLAKE_SAMPLE_DATA', 
-                'MY_DATABASE', 
-                'MY_DATABASE',
-                'ANALYTICS_DB',
-                'DATA_WAREHOUSE'
+                'SNOWFLAKE_SAMPLE_DATA'
             ],
             'SCHEMA_NAME': [
                 'TPCH_SF1', 
-                'TPCH_SF1', 
-                'PUBLIC', 
-                'ANALYTICS',
-                'SALES',
-                'STAGING'
+                'TPCH_SF1'
             ],
             'OBJECT_TYPE': [
                 'TABLE', 
-                'TABLE', 
-                'VIEW', 
-                'TABLE',
-                'VIEW',
-                'TABLE'
+                'VIEW'
             ],
             'OBJECT_NAME': [
                 'CUSTOMER', 
-                'ORDERS', 
-                'CUSTOMER_VIEW', 
-                'SALES_SUMMARY',
-                'MONTHLY_SALES',
-                'RAW_DATA'
+                'CUSTOMER_VIEW'
             ]
         }
         sample_df = pd.DataFrame(sample_data)
         
       
-        # Create Excel file in memory
+        # Excel template download
         excel_buffer = BytesIO()
-        with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-            sample_df.to_excel(writer, sheet_name='Lineage_Objects', index=False)
+        try:
+            with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+                sample_df.to_excel(writer, sheet_name='Lineage_Objects', index=False)
+            
+            # Get the data AFTER the writer is closed
+            excel_buffer.seek(0)
             excel_data = excel_buffer.getvalue()
             
-        st.download_button(
-            label="📊 Download Excel Template",
-            data=excel_data,
-            file_name="lineage_template.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
-            help="Download Excel template file"
-        )
+            st.download_button(
+                label="📊 Download Excel Template",
+                data=excel_data,
+                file_name="lineage_template.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+                help="Download Excel template file"
+            )
+                
+        except Exception as e:
+            st.error(f"Error creating Excel file: {str(e)}")
+            st.info("Please try again or contact support if the issue persists.")
         
         
         uploaded_file = st.file_uploader(
@@ -892,10 +764,7 @@ with tab2:
                     st.info("Required columns: DATABASE_NAME, SCHEMA_NAME, OBJECT_NAME")
                 else:
                     st.success(f"✅ File uploaded successfully! Found {len(df)} objects")
-                    
-                    # Display preview of uploaded data
-                    st.markdown("**📋 File Preview:**")
-                    st.dataframe(df.head(), use_container_width=True)
+                   
                     
                     # Create object names list
                     object_names_from_file = []
@@ -903,7 +772,6 @@ with tab2:
                         object_name = f"{row['DATABASE_NAME']}.{row['SCHEMA_NAME']}.{row['OBJECT_NAME']}"
                         object_names_from_file.append(object_name)
                     
-                    st.info(f"📊 Ready to analyze {len(object_names_from_file)} objects")
                     
             except Exception as e:
                 st.error(f"❌ Error reading file: {str(e)}")
@@ -970,7 +838,7 @@ with tab2:
                     
                     if not combined_df.empty:
                         # Create tabs for different views
-                        tab_summary, tab_details, tab_by_object = st.tabs(["📈 Summary", "📋 All Records", "🎯 By Object"])
+                        tab_summary, tab_details = st.tabs(["📈 Summary", "📋 All Records"])
                         
                         with tab_summary:
                             st.markdown("### 📈 Lineage Summary")
@@ -1001,50 +869,16 @@ with tab2:
                             st.markdown("### 📋 Detailed Lineage Records")
                             st.dataframe(combined_df, use_container_width=True, hide_index=True)
                             
-                            # Download options
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                csv = combined_df.to_csv(index=False)
-                                st.download_button("📥 Download CSV", csv, "multi_object_lineage.csv", "text/csv")
-                            with col2:
-                                # Create Excel file
-                                from io import BytesIO
-                                output = BytesIO()
-                                with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                                    combined_df.to_excel(writer, sheet_name='Lineage_Analysis', index=False)
-                                excel_data = output.getvalue()
-                                st.download_button("📊 Download Excel", excel_data, "multi_object_lineage.xlsx", 
-                                                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                            from io import BytesIO
+                            output = BytesIO()
+                            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                                combined_df.to_excel(writer, sheet_name='Lineage_Analysis', index=False)
+                            excel_data = output.getvalue()
+                            st.download_button("📊 Download Excel", excel_data, "multi_object_lineage.xlsx", 
+                                             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
                         
-                        with tab_by_object:
-                            st.markdown("### 🎯 Lineage by Object")
-                            
-                            # Object selector
-                            unique_objects = sorted(combined_df['QUERIED_OBJECT'].unique())
-                            selected_obj = st.selectbox("Select Object:", unique_objects, key="multi_obj_selector")
-                            
-                            if selected_obj:
-                                obj_data = combined_df[combined_df['QUERIED_OBJECT'] == selected_obj]
-                                
-                                upstream_data = obj_data[obj_data['LINEAGE_DIRECTION'] == 'UPSTREAM']
-                                downstream_data = obj_data[obj_data['LINEAGE_DIRECTION'] == 'DOWNSTREAM']
-                                
-                                col1, col2 = st.columns(2)
-                                with col1:
-                                    st.markdown(f"**🔼 Upstream for {selected_obj}**")
-                                    if not upstream_data.empty:
-                                        st.dataframe(upstream_data[['DISTANCE', 'SOURCE_OBJECT_NAME', 'TARGET_OBJECT_NAME']], 
-                                                   use_container_width=True, hide_index=True)
-                                    else:
-                                        st.info("No upstream dependencies")
-                                
-                                with col2:
-                                    st.markdown(f"**🔽 Downstream for {selected_obj}**")
-                                    if not downstream_data.empty:
-                                        st.dataframe(downstream_data[['DISTANCE', 'SOURCE_OBJECT_NAME', 'TARGET_OBJECT_NAME']], 
-                                                   use_container_width=True, hide_index=True)
-                                    else:
-                                        st.info("No downstream dependencies")
+                        
+                        
                     else:
                         st.warning("⚠️ No lineage data found for the analyzed objects")
                 else:
